@@ -1,16 +1,16 @@
 /*
  * Copyright (c) 2010 e.e d3si9n
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,7 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
- 
+
 package scalaxb.compiler.xsd
 
 import scalaxb.compiler.{Module, Config, Snippet, CustomXML, CanBeWriter, Log}
@@ -34,14 +34,14 @@ class Driver extends Module { driver =>
   type Schema = SchemaDecl
   type Context = XsdContext
   type RawSchema = scala.xml.Node
-  
+
   override def buildContext = XsdContext()
-  
+
   override def processSchema(schema: Schema, context: Context, cnfg: Config) {}
-  
+
   override def processContext(context: Context, schemas: Seq[SchemaDecl], cnfg: Config) =
     (new ContextProcessor {
-      var config = cnfg    
+      var config = cnfg
     }).processContext(context, schemas)
 
   override def packageName(namespace: Option[String], context: Context): Option[String] =
@@ -49,14 +49,17 @@ class Driver extends Module { driver =>
 
   override def generate(xsd: Schema, part: String, context: Context, cnfg: Config) = {
     val pkg = packageName(xsd.targetNamespace, context)
-    Seq((pkg, Snippet(headerSnippet(pkg),
-      (new GenSource(xsd, context, cnfg)).run), part))
+    val header = headerSnippet(pkg)
+    val snippet = Snippet(header, (new GenSource(xsd, context, cnfg)).run)
+
+    if (snippet.copy(definition = snippet.definition.filterNot(_ == emptySource)) == Snippet(header)) Seq()
+    else Seq((pkg, snippet, part))
   }
 
   override def generateProtocol(snippet: Snippet,
       context: Context, cnfg: Config): Seq[Node] =
     (new GenProtocol(context, cnfg)).generateProtocol(snippet, Seq())
-  
+
   override def toImportable(alocation: URI, rawschema: RawSchema): Importable = new Importable {
     val location = alocation
     val raw = rawschema
@@ -69,7 +72,7 @@ class Driver extends Module { driver =>
       case ImportDecl(_, Some(schemaLocation: String)) => schemaLocation
     }
     val includeLocations: Seq[String] = schemaLite.includes map { _.schemaLocation }
-    
+
     def toSchema(context: Context): Schema = {
       val schema = SchemaDecl.fromXML(raw, context)
       logger.debug("toSchema: " + schema.toString())
